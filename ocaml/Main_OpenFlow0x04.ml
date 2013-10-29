@@ -4,7 +4,7 @@ open Printf
 open Unix
 (* open OpenFlow0x04_Core *)
 (* module Test = RegexTest *)
-module Test = RegexFTTest
+module Test = RegexFTTestKAT
 
 (* configuration state *)
 let controller = ref "learn"
