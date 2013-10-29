@@ -77,4 +77,4 @@ module Routing = struct
 end
 
 let start () = let (_, pol_stream) = NetCore_Stream.from_stream (Filter False) Routing.policy in
-  Controller.start 6633 pol_stream
+  Controller.start_no_dehop 6633 pol_stream
