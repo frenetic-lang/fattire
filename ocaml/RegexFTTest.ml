@@ -41,8 +41,9 @@ module Routing = struct
   let ids = G.Switch (Int64.of_int 5)
 
   let from_to i j = And (Test (Header SDN_Types.IP4Src, make_host_ip i),
-                         Test (Header SDN_Types.IP4Dst, make_host_ip j))
-			   (* (DlType 0x800)) *)
+                         And (Test (Header SDN_Types.IP4Dst, make_host_ip j),
+			      Test (Header SDN_Types.EthType, VInt.Int16 0x800)))
+
   let make_policy = RegUnion (RegPol (from_to 1 2, (Sequence (Const h1, Sequence (Star, Const h2))), 1),
                             RegPol (from_to 2 1, (Sequence (Const h2, Sequence (Star, Const h1))), 1))
   (* let make_policy = RegUnion (RegPol (from_to 1 2, (Sequence (Const h1, Sequence (Star, (Sequence (Const ids, Sequence (Star, Const h2)))))), 1), *)
