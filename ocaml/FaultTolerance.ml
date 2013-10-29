@@ -232,7 +232,7 @@ let rec compile_ft_regex pol vid topo =
   let genSym = GenSym.create() in
   let tag = GenSym.next_val genSym in
   let tagged_ktree = tag_k_tree ktree tag genSym in
-  policy_from_k_tree (pred_to_netkat_pred pred) tagged_ktree topo vid tag
+  policy_from_k_tree pred tagged_ktree topo vid tag
 
 let rec compile_ft_to_kat regpol topo =
   let genSym = GenSym.create() in

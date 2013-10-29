@@ -1,7 +1,7 @@
 (* open OpenFlow0x01Types *)
-open NetCore_Types
+open Types
 module G = NetCore_Graph.Graph
-open NetCore_Pretty
+open Pretty
 
 (* type graph = (switchId * switchId * int) list *)
 

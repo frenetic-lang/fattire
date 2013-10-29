@@ -1,7 +1,7 @@
 (* open OpenFlow0x04_Core *)
 (* open OpenFlow0x04_Platform *)
 open OpenFlow0x01_Platform
-open FaultToleranceKAT
+open FaultTolerance
 open Types
 open Pretty
 open Pathetic.Regex
@@ -22,7 +22,6 @@ module Routing = struct
     *)
 
   let (policy, push) = Lwt_stream.create ()
-  let (pkt_stream, pkt_push) = Lwt_stream.create ()
   (* let (return_stream, return_push') = Lwt_stream.create () *)
   (* let return_push (swId : int64) (portId : int32) (status : portState) = return_push' (Some (swId,portId,status)) *)
 
@@ -33,7 +32,7 @@ module Routing = struct
     let b = Int32.of_int b in
     let c = Int32.of_int c in
     let d = Int32.of_int d in
-    VInt.VInt32 ((a <<< 24) ||| (b <<< 16) ||| (c <<< 8) ||| d)
+    VInt.Int32 ((a <<< 24) ||| (b <<< 16) ||| (c <<< 8) ||| d)
 
   let make_host_ip i = ints_to_ipv4 (10,0,0,i)
   let h1 = G.Host 1
@@ -69,13 +68,13 @@ module Routing = struct
   (*   () *)
 
 
-  let () = let pol = compile_ft_to_nc make_policy (D.make_topo ()) in
-	   Printf.printf "%s\n" (string_of_pol pol);
+  let () = let pol = compile_ft_to_kat make_policy (D.make_topo ()) in
+	   Printf.printf "%s\n" (string_of_policy pol);
 	   push (Some pol);
 	   (* let _ = port_status_loop () in *)
 	   ()
 
 end
 
-let start () = let (_, pol_stream) = NetCore_Stream.from_stream (Action []) Routing.policy in
-  NetCore_Controller.start_controller Routing.pkt_stream pol_stream
+let start () = let (_, pol_stream) = NetCore_Stream.from_stream (Filter False) Routing.policy in
+  Controller.start 6633 pol_stream
