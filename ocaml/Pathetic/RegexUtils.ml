@@ -1,10 +1,13 @@
 open Regex
-module G = Graph.Graph
+module G = NetCore_Graph.Graph
 open NetCore_Types
 module R = Regex
 
 let oldPol (a,b) = Seq (Filter a, Action b)
-let oldInPort p = Hdr {all with ptrnInPort = WildcardExact (Physical (Int32.to_int p))}
+let oldInPort p =
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
+    Hdr { all with ptrnInPort = WildcardExact (Physical p) }
 
   (* Naive compilation: does not guarantee loop-free semantics
      Possible issues:
@@ -74,29 +77,35 @@ let shortest_path_re re src topo =
   (try List.rev (bfs' (G.copy topo) q) 
    with Queue.Empty -> raise G.(NoPath("unknown", "unknown")))
  
-let rec compile_path1 pred path topo port = match path with
+let rec compile_path1 pred path topo port =
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
+  match path with
   | G.Switch s1 :: G.Switch s2 :: path -> 
     let p1,p2 = G.get_ports topo (G.Switch s1) (G.Switch s2) in
-    Union ((oldPol ((And (pred, (And (Hdr {all with ptrnInPort = WildcardExact (Physical (Int32.to_int port))},OnSwitch s1)))), [SwitchAction {id with outPort = Physical (Int32.to_int p1)}])), ((compile_path1 pred ((G.Switch s2) :: path) topo p2)))
+    Union ((oldPol ((And (pred, (And (Hdr {all with ptrnInPort = WildcardExact (Physical port)},OnSwitch s1)))), [SwitchAction {id with outPort = Physical p1}])), ((compile_path1 pred ((G.Switch s2) :: path) topo p2)))
   | G.Switch s1 :: [G.Host h] -> 
     let p1,_ = G.get_ports topo (G.Switch s1) (G.Host h) in
-    oldPol ((And (pred, (And (Hdr {all with ptrnInPort = WildcardExact (Physical (Int32.to_int port))}, OnSwitch s1)))), 
-	 [SwitchAction {id with outPort = Physical (Int32.to_int p1); outDlVlan = Some (None, None)}])
+    oldPol ((And (pred, (And (Hdr {all with ptrnInPort = WildcardExact (Physical port)}, OnSwitch s1)))),
+	 [SwitchAction {id with outPort = Physical p1; outDlVlan = Some (None, None)}])
   | _ -> oldPol (pred, [])
 
 let print_list printer lst = 
   Printf.sprintf "[%s]" (String.concat ";" (List.map printer lst))
 
-let compile_path pred path topo vid  = match path with
+let compile_path pred path topo vid =
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
+  match path with
   | G.Host h1 :: G.Switch s :: [G.Host h2] -> 
     let (_,p1) = G.get_ports topo (G.Host h1) (G.Switch s) in 
     let (p2,_) = G.get_ports topo (G.Switch s) (G.Host h2) in
-    oldPol ((And (pred, (And (oldInPort p1, OnSwitch s)))), [SwitchAction {id with outPort = Physical (Int32.to_int p2)}])
+    oldPol ((And (pred, (And (oldInPort p1, OnSwitch s)))), [SwitchAction {id with outPort = Physical p2}])
   | G.Host h :: G.Switch s1 :: G.Switch s2 :: path -> 
     let _,inport = G.get_ports topo (G.Host h) (G.Switch s1) in
     let p1,p2 = G.get_ports topo (G.Switch s1) (G.Switch s2) in
     let pol = oldPol (And (pred, (And (oldInPort inport, OnSwitch s1))), 
-		   [SwitchAction {id with outDlVlan=Some (None, Some vid); outPort = Physical (Int32.to_int p1)}]) in
+		   [SwitchAction {id with outDlVlan=Some (None, Some vid); outPort = Physical p1}]) in
     Union (pol, compile_path1 (And (Hdr {all with ptrnDlVlan = WildcardExact (Some vid); ptrnDlVlanPcp = WildcardExact 0}, pred)) (G.Switch s2 :: path) topo p2)
   | [] -> oldPol(pred,[])
   | _ -> failwith (Printf.sprintf "Trying to compile path %s which does not start with a host followed by a switch" (print_list G.node_to_string path))

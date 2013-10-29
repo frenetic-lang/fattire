@@ -4,7 +4,7 @@ open OpenFlow0x04_Core
 open NetCore_Types
 (* open NetCoreFT *)
 
-module G = Graph.Graph
+module G = NetCore_Graph.Graph
 
 (* open NetCoreEval0x04 *)
 
@@ -108,6 +108,8 @@ let stamp_tag tag =
   { id with outDlVlanPcp = Some (0, tag) }
 
 let match_tag pathTag tag = 
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
   { all with ptrnDlVlan = WildcardExact pathTag; ptrnDlVlanPcp = WildcardExact tag }
 
 module GenSym =
@@ -140,14 +142,16 @@ let rec tag_k_tree tree tag gensym = match tree with
   | KTree(sw, []) -> failwith (Printf.sprintf "tag_k_tree: ktree at node %s contained no children" (G.node_to_string sw))
 
 let next_port_from_k_tree sw topo pathTag tree = 
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
   (* Printf.printf "[FaulTolerance.ml] next_hop_from_k_tree %s\n%!" (k_tree_to_string tree); *)
   match tree with
   | (tag, KLeaf_t host) -> 
     let (_,p1) = G.get_ports topo host sw in
-    [ SwitchAction {(strip_tag pathTag) with outPort = Physical (Int32.to_int p1) } ]
+    [ SwitchAction {(strip_tag pathTag) with outPort = Physical p1 } ]
   | (tag, KTree_t (sw', _)) -> 
     let p1,p2 = G.get_ports topo sw sw' in
-    [ SwitchAction {(stamp_tag tag) with outPort = Physical (Int32.to_int p1) } ]
+    [ SwitchAction {(stamp_tag tag) with outPort = Physical p1 } ]
   | (tag, KRoot_t (h,sw)) ->
     failwith "next_port_from_k_tree: off-by-one error. Should not be called on KRoot_t node"
 
@@ -165,6 +169,8 @@ let next_hop_from_k_tree sw topo tree =
 
 (* Converts a k fault tolerant tree into a NetCore policy *)
 let rec policy_from_k_tree' inport tree topo path_tag tag = 
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
   (* Printf.printf "[FaulTolerance.ml] policy_from_k_tree' %ld %s\n%!" inport (tagged_k_tree_to_string tree); *)
   match tree with
     | KLeaf_t h -> 
@@ -177,31 +183,35 @@ let rec policy_from_k_tree' inport tree topo path_tag tag =
       let next_hops = List.map (next_hop_from_k_tree sw' topo) children in
       let children_pols = List.fold_left 
 	(fun a (sw'', inport,tree) -> 
-	  Union(a, policy_from_k_tree' (Physical (Int32.to_int inport)) (snd tree) topo path_tag (fst tree))) trivial_pol next_hops in
+	  Union(a, policy_from_k_tree' (Physical inport) (snd tree) topo path_tag (fst tree))) trivial_pol next_hops in
       Union(backup, children_pols)
 
 let next_port_from_k_tree_root sw topo pathTag tree = 
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
   match tree with
   | (tag, KLeaf_t host) -> 
     let (_,p1) = G.get_ports topo host sw in
-    [ SwitchAction {(strip_tag pathTag) with outPort = Physical (Int32.to_int p1) } ]
-  | (tag, KTree_t (sw', _)) -> 
+    [ SwitchAction {(strip_tag pathTag) with outPort = Physical p1 } ]
+  | (tag, KTree_t (sw', _)) ->
     let p1,p2 = G.get_ports topo sw sw' in
-    [ SwitchAction {(stamp_path_tag pathTag tag) with outPort = Physical (Int32.to_int p1) } ]
+    [ SwitchAction {(stamp_path_tag pathTag tag) with outPort = Physical p1 } ]
 
 let policy_from_k_tree pr tree topo (path_tag : int) tag =  
+  let open NetCore_Pattern in
+  let open NetCore_Wildcard in
   (* Printf.printf "[FaulTolerance.ml] policy_from_k_tree %s\n%!" (tagged_k_tree_to_string tree); *)
   match tree with
     | KRoot_t(G.Host h, KTree_t(G.Switch sw, children)) -> 
       let sw' = G.Switch sw in
       let _,inport = G.get_ports topo (G.Host h) sw' in
       let children_ports = List.map (next_port_from_k_tree_root sw' topo (Some path_tag)) children in
-      let backup = lpar(And( OnSwitch sw, And (pr, Hdr {all with ptrnInPort = WildcardExact (Physical (Int32.to_int inport))})), 
+      let backup = lpar(And( OnSwitch sw, And (pr, Hdr {all with ptrnInPort = WildcardExact (Physical inport)})), 
 			children_ports) in
       let next_hops = List.map (next_hop_from_k_tree (G.Switch sw) topo) children in
       let children_pols = List.fold_left 
 	(fun a (sw'', inport,treeTag) -> 
-	  Union(a, policy_from_k_tree' (Physical (Int32.to_int inport)) (snd treeTag) topo (Some path_tag) (fst treeTag))) trivial_pol next_hops in
+	  Union(a, policy_from_k_tree' (Physical inport) (snd treeTag) topo (Some path_tag) (fst treeTag))) trivial_pol next_hops in
       Union(backup, children_pols)
 
 

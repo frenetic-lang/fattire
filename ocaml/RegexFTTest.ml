@@ -1,12 +1,14 @@
 (* open OpenFlow0x04_Core *)
 (* open OpenFlow0x04_Platform *)
-open OpenFlow0x01_PlatformSig
+open OpenFlow0x01_Platform
 open FaultTolerance
 open NetCore_Types
 open NetCore_Pretty
+open NetCore_Pattern
+open NetCore_Wildcard
 open Pathetic.Regex
 module H = Hashtbl
-module G = Graph.Graph
+module G = NetCore_Graph.Graph
 
 module D = DiamondTopo
 (* module D = IDSTopo *)
@@ -76,12 +78,5 @@ module Routing = struct
 
 end
 
-module Make (Platform : PLATFORM) = struct
-
-  module Controller = NetCore_Controller.Make (Platform)
-
-  let start () = let (_, pol_stream) = NetCore_Stream.from_stream (Action []) Routing.policy in
-		 Controller.start_controller Routing.pkt_stream pol_stream
-
-end
-
+let start () = let (_, pol_stream) = NetCore_Stream.from_stream (Action []) Routing.policy in
+  NetCore_Controller.start_controller Routing.pkt_stream pol_stream

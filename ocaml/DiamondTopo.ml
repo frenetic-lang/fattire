@@ -1,7 +1,7 @@
 open OpenFlow0x04_Platform
-open NetCoreFT
+(* open NetCoreFT *)
 
-module G = Graph.Graph
+module G = NetCore_Graph.Graph
 
 let s1 = G.Switch (Int64.of_int 1)
 let s2 = G.Switch (Int64.of_int 2)
