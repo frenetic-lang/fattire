@@ -1,7 +1,7 @@
 (* type graph = (switchId * switchId * int) list *)
 
 type regex =
-    Const of Graph.Graph.node
+    Const of NetCore_Graph.Graph.node
   | Star
   | Sequence of regex * regex
   | Union of regex * regex

@@ -1,6 +1,6 @@
 open Printf
 (* open OpenFlow0x04Parser *)
-open OpenFlow0x01_PlatformSig
+
 open Unix
 (* open OpenFlow0x04_Core *)
 (* module Test = RegexTest *)

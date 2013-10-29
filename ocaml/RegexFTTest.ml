@@ -8,7 +8,7 @@ open NetCore_Pattern
 open NetCore_Wildcard
 open Pathetic.Regex
 module H = Hashtbl
-module G = Graph.Graph
+module G = NetCore_Graph.Graph
 
 module D = DiamondTopo
 (* module D = IDSTopo *)

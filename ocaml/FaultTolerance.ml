@@ -4,7 +4,7 @@ open OpenFlow0x04_Core
 open NetCore_Types
 (* open NetCoreFT *)
 
-module G = Graph.Graph
+module G = NetCore_Graph.Graph
 
 (* open NetCoreEval0x04 *)
 
