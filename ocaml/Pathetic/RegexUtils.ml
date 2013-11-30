@@ -1,13 +1,11 @@
+open Types
 open Regex
 module G = NetCore_Graph.Graph
-open NetCore_Types
 module R = Regex
 
-let oldPol (a,b) = Seq (Filter a, Action b)
+let oldPol (a,b) = Seq (Filter a, b)
 let oldInPort p =
-  let open NetCore_Pattern in
-  let open NetCore_Wildcard in
-    Hdr { all with ptrnInPort = WildcardExact (Physical p) }
+  Test (Header SDN_Types.InPort, VInt.Int32 p)
 
   (* Naive compilation: does not guarantee loop-free semantics
      Possible issues:
@@ -78,36 +76,35 @@ let shortest_path_re re src topo =
    with Queue.Empty -> raise G.(NoPath("unknown", "unknown")))
  
 let rec compile_path1 pred path topo port =
-  let open NetCore_Pattern in
-  let open NetCore_Wildcard in
   match path with
   | G.Switch s1 :: G.Switch s2 :: path -> 
     let p1,p2 = G.get_ports topo (G.Switch s1) (G.Switch s2) in
-    Union ((oldPol ((And (pred, (And (Hdr {all with ptrnInPort = WildcardExact (Physical port)},OnSwitch s1)))), [SwitchAction {id with outPort = Physical p1}])), ((compile_path1 pred ((G.Switch s2) :: path) topo p2)))
+    Par (Seq (Filter (And (pred, (And (oldInPort port, Test (Switch, VInt.Int64 s1))))), Mod (Header SDN_Types.InPort, VInt.Int32 p1)), ((compile_path1 pred ((G.Switch s2) :: path) topo p2)))
   | G.Switch s1 :: [G.Host h] -> 
     let p1,_ = G.get_ports topo (G.Switch s1) (G.Host h) in
-    oldPol ((And (pred, (And (Hdr {all with ptrnInPort = WildcardExact (Physical port)}, OnSwitch s1)))),
-	 [SwitchAction {id with outPort = Physical p1; outDlVlan = Some (None, None)}])
-  | _ -> oldPol (pred, [])
+    Seq (Filter (And (pred, (And (oldInPort port, Test (Switch, VInt.Int64 s1))))),
+	 Seq( Mod(Header SDN_Types.Vlan, VInt.Int16 0xFFFF),
+              Mod(Header SDN_Types.InPort, VInt.Int32 p1)))
+  | _ -> Filter False
 
 let print_list printer lst = 
   Printf.sprintf "[%s]" (String.concat ";" (List.map printer lst))
 
 let compile_path pred path topo vid =
-  let open NetCore_Pattern in
-  let open NetCore_Wildcard in
   match path with
   | G.Host h1 :: G.Switch s :: [G.Host h2] -> 
     let (_,p1) = G.get_ports topo (G.Host h1) (G.Switch s) in 
     let (p2,_) = G.get_ports topo (G.Switch s) (G.Host h2) in
-    oldPol ((And (pred, (And (oldInPort p1, OnSwitch s)))), [SwitchAction {id with outPort = Physical p2}])
+    Seq (Filter (And (pred, (And (oldInPort p1, Test (Switch, VInt.Int64 s))))),
+         Mod (Header SDN_Types.InPort, VInt.Int32 p2))
   | G.Host h :: G.Switch s1 :: G.Switch s2 :: path -> 
     let _,inport = G.get_ports topo (G.Host h) (G.Switch s1) in
     let p1,p2 = G.get_ports topo (G.Switch s1) (G.Switch s2) in
-    let pol = oldPol (And (pred, (And (oldInPort inport, OnSwitch s1))), 
-		   [SwitchAction {id with outDlVlan=Some (None, Some vid); outPort = Physical p1}]) in
-    Union (pol, compile_path1 (And (Hdr {all with ptrnDlVlan = WildcardExact (Some vid); ptrnDlVlanPcp = WildcardExact 0}, pred)) (G.Switch s2 :: path) topo p2)
-  | [] -> oldPol(pred,[])
+    let pol = oldPol (And (pred, (And (oldInPort inport, Test (Switch, VInt.Int64 s1)))), 
+		      Seq( Mod(Header SDN_Types.Vlan, VInt.Int16 vid),
+                           Mod(Header SDN_Types.InPort, VInt.Int32 p1))) in
+    Par (pol, compile_path1 (And (And (Test (Header SDN_Types.Vlan, VInt.Int16 vid), Test (Header SDN_Types.VlanPcp, VInt.Int16 0)), pred)) (G.Switch s2 :: path) topo p2)
+  | [] -> Filter False
   | _ -> failwith (Printf.sprintf "Trying to compile path %s which does not start with a host followed by a switch" (print_list G.node_to_string path))
 
 
@@ -167,9 +164,9 @@ let rec to_dnf_list pol = match pol with
 let rec dnf_form_pred pred = match pred with
   | And(Or _, _) -> false
   | And(_, Or _) -> false
-  | Not (Not _) -> false
-  | Not (And _) -> false
-  | Not (Or _) -> false
+  | Neg (Neg _) -> false
+  | Neg (And _) -> false
+  | Neg (Or _) -> false
   | And(a,b) -> dnf_form_pred a & dnf_form_pred b
   | Or(a,b) -> dnf_form_pred a & dnf_form_pred b
   | _ -> true
@@ -182,9 +179,9 @@ let rec to_dnf_pred' pred = match pred with
   | _ -> pred
 
 let rec demorganize pred = match pred with
-  | Not (And(a,b)) -> Or (demorganize (Not a), demorganize (Not b))
-  | Not (Or(a,b)) -> And (demorganize (Not a), demorganize (Not b))
-  | Not (Not a) -> demorganize a
+  | Neg (And(a,b)) -> Or (demorganize (Neg a), demorganize (Neg b))
+  | Neg (Or(a,b)) -> And (demorganize (Neg a), demorganize (Neg b))
+  | Neg (Neg a) -> demorganize a
   | And(a,b) -> And (demorganize a, demorganize b)
   | Or(a,b) -> Or (demorganize a, demorganize b)
   | _ -> pred
@@ -203,7 +200,7 @@ let rec to_dnf_pred_list pred : pred list list = match pred with
   | And(a,b) -> [List.concat (to_dnf_pred_list a @ to_dnf_pred_list b)]
   | _ -> [[pred]]
 
-let trivial_pol = RegPol(Nothing, Star, 0)
+let trivial_pol = RegPol(False, Star, 0)
 
 let rec product lst1 lst2 = match lst1 with
   | [] -> []
@@ -211,18 +208,18 @@ let rec product lst1 lst2 = match lst1 with
 
 (* returns true if atomic pred pr2 is subsumed by atomic pred pr1 *)
 let atom_matches pr1 pr2 = match pr1,pr2 with
-  | Everything,_ -> true
-  | _,Nothing -> true
+  | True,_ -> true
+  | _,False -> true
   | _ -> pr1 = pr2
   
 (* pr2 is an atomic pred *)
 let rec pred_matches pr1 pr2 =
   match pr1 with
-    | Everything -> true
-    | Nothing -> false
+    | True -> true
+    | False -> false
     | And(a,b) -> pred_matches a pr2 & pred_matches b pr2
     | Or(a,b) -> pred_matches a pr2 or pred_matches b pr2
-    | Not a -> not (pred_matches a pr2)
+    | Neg a -> not (pred_matches a pr2)
     | _ -> pr1 = pr2
 
 (* thm: for phi,psi DNF, phi overlaps with psi iff one conjunction of phi overlaps with one conjunction of psi *)
@@ -273,7 +270,7 @@ let rec blast_inter_list pol =
 	 if preds_overlap pr1' pr2' 
 	 then
 	   (to_dnf_pred (And(pr_a, pr)), re_a && re, max k_a k)
-	 else (Nothing, Star, 0)) (Everything, Star, 0) pol)) pol)
+	 else (False, Star, 0)) (True, Star, 0) pol)) pol)
 
 (* Takes in a DNF policy and eliminates all intersections, returning a union of atomic policies *)
 let rec blast_inter pol = match pol with
@@ -312,8 +309,8 @@ let rec blast_union1 pol1 pol2 = match pol1,pol2 with
 	  [RegPol(pr1, re1 && re2, max k1 k2)]
 	else
 	  if preds_overlap pr1' pr2' then
-	    [RegPol(And (pr1, Not pr2), re1, k1);
-	     RegPol(And (pr2, Not pr1), re2, k2);
+	    [RegPol(And (pr1, Neg pr2), re1, k1);
+	     RegPol(And (pr2, Neg pr1), re2, k2);
 	     RegPol(And (pr1, pr2), re1 && re2, max k1 k2)]
 	  else
 	    [RegPol(pr1,re1,k1); 
@@ -345,23 +342,23 @@ let rec blast_union pols = match pols with
 (*   blast_union (blast_inter (to_dnf pol)) *)
 
 let rec simpl_pred pred = match pred with
-  | Or(Everything, _) -> Everything
-  | Or(_, Everything) -> Everything
-  | Or(Nothing, a) -> a
-  | Or(a, Nothing) -> a
+  | Or(True, _) -> True
+  | Or(_, True) -> True
+  | Or(False, a) -> a
+  | Or(a, False) -> a
   | Or (a,b) -> let a' = simpl_pred a in
 		let b' = simpl_pred b in
 		if preds_equiv a' b' then a' else Or (a', b')
-  | And(Everything, a) -> a
-  | And(a, Everything) -> a
-  | And(Nothing, _) -> Nothing
-  | And(_, Nothing) -> Nothing
+  | And(True, a) -> a
+  | And(a, True) -> a
+  | And(False, _) -> False
+  | And(_, False) -> False
   | And (a,b) -> let a' = simpl_pred a in
 		 let b' = simpl_pred b in
 		 if preds_equiv a' b' then a' else And (a', b')
-  | Not (Not a) -> a
-  | Not Everything -> Nothing
-  | Not Nothing -> Everything
+  | Neg (Neg a) -> a
+  | Neg True -> False
+  | Neg False -> True
   | _ -> pred
 
 let rec simpl_re re = match re with
@@ -400,7 +397,7 @@ let simpl_pol =
 let remove_trivial = 
   List.fold_left (fun acc p -> 
     let RegPol(pr,re,k) = p in
-    if pr = Nothing or re = EmptySet then acc else p :: acc) []
+    if pr = False or re = EmptySet then acc else p :: acc) []
 
 (* Takes in a list of atomic policies *)
 let simplify pols =
@@ -432,4 +429,4 @@ let normalize pol =
 
 let rec compile_regex pol topo = match pol with
   | RegPol (pred, reg, _) -> compile_path pred (expand_re reg topo) topo (Gensym.next ())
-  | RegUnion (pol1, pol2) -> Union (compile_regex pol1 topo, compile_regex pol2 topo)
+  | RegUnion (pol1, pol2) -> Par (compile_regex pol1 topo, compile_regex pol2 topo)

@@ -26,13 +26,10 @@ let () = Arg.parse arg_specs arg_rest usage
 let main () = 
   Sys.catch_break true;
   try 
-    OpenFlow0x01_Platform.init_with_port 6633;
-    (* Printexc.record_backtrace (); *)
     Lwt_main.run (Test.start ())
   with exn -> 
     OpenFlow0x04_Misc.Log.printf "[main] exception: %s\n%s\n%!" 
       (Printexc.to_string exn) (Printexc.get_backtrace ());
-    OpenFlow0x01_Platform.shutdown ();
     exit 1
       
 let _ = main ()
