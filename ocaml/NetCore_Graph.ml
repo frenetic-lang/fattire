@@ -1,6 +1,6 @@
 module H = Hashtbl
 module Q = Queue
-module M = NetCore_Types
+module M = NetKAT_Types
 
 module type GRAPH =
 sig

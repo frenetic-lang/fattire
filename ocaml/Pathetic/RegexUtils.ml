@@ -1,11 +1,13 @@
-open Types
+open NetKAT_Types
 open Regex
-module G = NetCore_Graph.Graph
+module G = Async_NetKAT
+module N = G.Node
+module T = G.Net.Topology
 module R = Regex
 
 let oldPol (a,b) = Seq (Filter a, b)
 let oldInPort p =
-  Test (Header SDN_Types.InPort, VInt.Int32 p)
+  Test (Location p)
 
   (* Naive compilation: does not guarantee loop-free semantics
      Possible issues:
@@ -25,87 +27,103 @@ let rec seen_link_before sw1 sw2 path =
     | a :: b :: path -> if a = sw1 & b = sw2 then true else
 	seen_link_before sw1 sw2 (b :: path)
 
+let get_nbrs g node =
+  let ports = T.vertex_to_ports g node in
+  T.PortSet.fold (fun pt s -> match (T.next_hop g node pt) with
+      | None -> s
+      | Some e -> T.EdgeSet.add e s) ports T.EdgeSet.empty
+
 (* Need to add constraints to avoid routing through hosts *)
 let rec bfs' graph queue =
   let (sw, re, path) = (Q.take queue) in
-  Printf.printf "bfs' %s %s %s \n%!" (G.node_to_string sw) (regex_to_string re)
-    (String.concat ";" (List.map G.node_to_string path));
+  Printf.printf "bfs' %s %s %s \n%!" (N.to_string sw) (regex_to_string re)
+    (String.concat ";" (List.map N.to_string path));
   match (match_path re [Const sw]) with
     | true -> path
     | false -> 
-      let nbrs = (G.get_nbrs graph sw) in
-      List.iter (fun x -> 
+      let nbrs = (T.neighbors graph (T.vertex_of_label graph sw)) in
+      T.VertexSet.iter (fun x ->
+          let x = T.vertex_to_label graph x in
 	if seen_link_before sw x path then () else
 	  let re' = deriv (Const x) re in
 	  match is_empty re' with
 	    | false ->
 	      Q.add (x, re', x :: path) queue
 	    | true -> ()) 
-	nbrs; 
+	nbrs;
       bfs' graph queue
 
 
+exception NoPath of string*string
+
 let bfs graph re = 
   let q = Queue.create () in
-  List.iter (fun src ->
-    let re' = deriv (Const src) re in
-    match is_empty re' with
+  T.VertexSet.iter (fun src' ->
+      let src = T.vertex_to_label graph src' in
+      let re' = deriv (Const src) re in
+      match is_empty re' with
       | false -> Q.add (src, re', [src]) q
       | true -> ())
-    (G.get_nodes graph);
-  (try (bfs' (G.copy graph) q) 
-   with Queue.Empty -> raise G.(NoPath("unknown", "unknown")))
+    (T.vertexes graph );
+  (try (bfs' graph q)
+   with Queue.Empty -> raise (NoPath("unknown", "unknown")))
 
 
 let expand_re re topo = 
   try let return = List.rev (bfs topo re) in
-      (* Printf.printf "expand_re returned %s\n" (String.concat ";" (List.map G.node_to_string return)); *)
+      (* Printf.printf "expand_re returned %s\n" (String.concat ";" (List.map N.to_string return)); *)
       return
   with 
-    | G.NoPath(s1,s2) -> Printf.printf "Couldn't find path for %s in graph\n\t%s\n" (regex_to_string re) (G.to_string topo);
-      raise (G.(NoPath("unknown","unknown")))
+    | NoPath(s1,s2) -> Printf.printf "Couldn't find path for %s in graph\n\t%s\n" (regex_to_string re) (G.Net.Pretty.to_string topo);
+      raise (NoPath("unknown","unknown"))
 
 let shortest_path_re re src topo = 
-  Printf.printf "shortest_path_re %s %s %s\n" (regex_to_string re) (G.node_to_string src) (G.to_string topo);
+  Printf.printf "shortest_path_re %s %s %s\n" (regex_to_string re) (N.to_string src) (G.Net.Pretty.to_string topo);
   let q = Queue.create () in
   let re' = deriv (Const src) re in
   (match is_empty re' with
     | false -> Q.add (src, re', [src]) q
     | true -> ());
-  (try List.rev (bfs' (G.copy topo) q) 
-   with Queue.Empty -> raise G.(NoPath("unknown", "unknown")))
+  (try List.rev (bfs' topo q)
+   with Queue.Empty -> raise (NoPath("unknown", "unknown")))
  
 let rec compile_path1 pred path topo port =
   match path with
-  | G.Switch s1 :: G.Switch s2 :: path -> 
-    let p1,p2 = G.get_ports topo (G.Switch s1) (G.Switch s2) in
-    Par (Seq (Filter (And (pred, (And (oldInPort port, Test (Switch, VInt.Int64 s1))))), Mod (Header SDN_Types.InPort, VInt.Int32 p1)), ((compile_path1 pred ((G.Switch s2) :: path) topo p2)))
-  | G.Switch s1 :: [G.Host h] -> 
-    let p1,_ = G.get_ports topo (G.Switch s1) (G.Host h) in
-    Seq (Filter (And (pred, (And (oldInPort port, Test (Switch, VInt.Int64 s1))))),
-	 Seq( Mod(Header SDN_Types.Vlan, VInt.Int16 0xFFFF),
-              Mod(Header SDN_Types.InPort, VInt.Int32 p1)))
+  | G.Switch s1 :: G.Switch s2 :: path ->
+    let e = T.find_edge topo (T.vertex_of_label topo (G.Switch s1)) (T.vertex_of_label topo (G.Switch s2)) in
+    let _,p1 = T.edge_src e in
+    let _,p2 = T.edge_dst e in
+    NetKAT_Types.Union (Seq (Filter (And (pred, (And (oldInPort port, Test (Switch s1))))), Mod (Location (Physical p1))), ((compile_path1 pred ((G.Switch s2) :: path) topo (Physical p2))))
+  | G.Switch s1 :: [G.Host (mac,ip)] ->
+    let _,p1 = T.edge_src (T.find_edge topo (T.vertex_of_label topo (G.Switch s1)) (T.vertex_of_label topo (G.Host (mac,ip)))) in
+    Seq (Filter (And (pred, (And (oldInPort port, Test (Switch s1))))),
+	 Seq( Mod(Vlan 0xFFFF),
+              Mod(Location (Physical p1))))
   | _ -> Filter False
 
 let print_list printer lst = 
   Printf.sprintf "[%s]" (String.concat ";" (List.map printer lst))
 
+let get_ports topo v1 v2 =
+  let e = T.find_edge topo (T.vertex_of_label topo v1) (T.vertex_of_label topo v2) in
+  snd (T.edge_src e), snd (T.edge_dst e)
+
 let compile_path pred path topo vid =
   match path with
-  | G.Host h1 :: G.Switch s :: [G.Host h2] -> 
-    let (_,p1) = G.get_ports topo (G.Host h1) (G.Switch s) in 
-    let (p2,_) = G.get_ports topo (G.Switch s) (G.Host h2) in
-    Seq (Filter (And (pred, (And (oldInPort p1, Test (Switch, VInt.Int64 s))))),
-         Mod (Header SDN_Types.InPort, VInt.Int32 p2))
-  | G.Host h :: G.Switch s1 :: G.Switch s2 :: path -> 
-    let _,inport = G.get_ports topo (G.Host h) (G.Switch s1) in
-    let p1,p2 = G.get_ports topo (G.Switch s1) (G.Switch s2) in
-    let pol = oldPol (And (pred, (And (oldInPort inport, Test (Switch, VInt.Int64 s1)))), 
-		      Seq( Mod(Header SDN_Types.Vlan, VInt.Int16 vid),
-                           Mod(Header SDN_Types.InPort, VInt.Int32 p1))) in
-    Par (pol, compile_path1 (And (And (Test (Header SDN_Types.Vlan, VInt.Int16 vid), Test (Header SDN_Types.VlanPcp, VInt.Int16 0)), pred)) (G.Switch s2 :: path) topo p2)
+  | G.Host (mac1,ip1) :: G.Switch s :: [G.Host (mac2,ip2)] ->
+    let (_,p1) = get_ports topo (G.Host (mac1, ip1)) (G.Switch s) in
+    let (p2,_) = get_ports topo (G.Switch s) (G.Host (mac2, ip2)) in
+    Seq (Filter (And (pred, (And (oldInPort (Physical p1), Test (Switch s))))),
+         Mod (Location (Physical p2)))
+  | G.Host (h1,h2) :: G.Switch s1 :: G.Switch s2 :: path ->
+    let _,inport = get_ports topo (G.Host (h1,h2)) (G.Switch s1) in
+    let p1,p2 = get_ports topo (G.Switch s1) (G.Switch s2) in
+    let pol = oldPol (And (pred, (And (oldInPort (Physical inport), Test (Switch s1)))),
+		      Seq( Mod(Vlan vid),
+                           Mod(Location (Physical p1)))) in
+    NetKAT_Types.Union (pol, compile_path1 (And (And (Test (Vlan vid), Test (VlanPcp 0)), pred)) (G.Switch s2 :: path) topo (Physical p2))
   | [] -> Filter False
-  | _ -> failwith (Printf.sprintf "Trying to compile path %s which does not start with a host followed by a switch" (print_list G.node_to_string path))
+  | _ -> failwith (Printf.sprintf "Trying to compile path %s which does not start with a host followed by a switch" (print_list N.to_string path))
 
 
 
@@ -429,4 +447,4 @@ let normalize pol =
 
 let rec compile_regex pol topo = match pol with
   | RegPol (pred, reg, _) -> compile_path pred (expand_re reg topo) topo (Gensym.next ())
-  | RegUnion (pol1, pol2) -> Par (compile_regex pol1 topo, compile_regex pol2 topo)
+  | RegUnion (pol1, pol2) -> NetKAT_Types.Union (compile_regex pol1 topo, compile_regex pol2 topo)
