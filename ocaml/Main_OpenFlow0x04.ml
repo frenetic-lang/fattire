@@ -1,9 +1,6 @@
-open Printf
-(* open OpenFlow0x04Parser *)
+open Async.Std
+open Core.Std
 
-open Unix
-(* open OpenFlow0x04_Core *)
-(* module Test = RegexTest *)
 module Test = RegexFTTest
 
 (* configuration state *)
@@ -23,13 +20,8 @@ let usage =
 
 let () = Arg.parse arg_specs arg_rest usage
 
-let main () = 
-  Sys.catch_break true;
-  try 
-    Lwt_main.run (Test.start ())
-  with exn -> 
-    OpenFlow0x04_Misc.Log.printf "[main] exception: %s\n%s\n%!" 
-      (Printexc.to_string exn) (Printexc.get_backtrace ());
-    exit 1
-      
-let _ = main ()
+let _ =
+  let main () =
+    Async_NetKAT_Controller.start Test.app ~update:`BestEffort ()
+  in
+  never_returns (Scheduler.go_main ~max_num_open_file_descrs:4096 ~main ())

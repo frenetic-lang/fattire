@@ -1,12 +1,12 @@
 (* open OpenFlow0x04_Core *)
 (* open OpenFlow0x04_Platform *)
-open OpenFlow0x01_Platform
 open FaultTolerance
-open Types
-open Pretty
+open NetKAT_Types
+open NetKAT_Pretty
 open Pathetic.Regex
+open Async_NetKAT
 module H = Hashtbl
-module G = NetCore_Graph.Graph
+module G = Net.Topology
 
 module D = DiamondTopo
 (* module D = IDSTopo *)
@@ -21,7 +21,6 @@ module Routing = struct
        S4
     *)
 
-  let (policy, push) = Lwt_stream.create ()
   (* let (return_stream, return_push') = Lwt_stream.create () *)
   (* let return_push (swId : int64) (portId : int32) (status : portState) = return_push' (Some (swId,portId,status)) *)
 
@@ -32,17 +31,17 @@ module Routing = struct
     let b = Int32.of_int b in
     let c = Int32.of_int c in
     let d = Int32.of_int d in
-    VInt.Int32 ((a <<< 24) ||| (b <<< 16) ||| (c <<< 8) ||| d)
+    ((a <<< 24) ||| (b <<< 16) ||| (c <<< 8) ||| d)
 
   let make_host_ip i = ints_to_ipv4 (10,0,0,i)
-  let h1 = G.Host 1
-  let h2 = G.Host 2
+  let h1 = Host (1L,1l)
+  let h2 = Host (2L,2l)
 
-  let ids = G.Switch (Int64.of_int 5)
+  let ids = Switch 5L
 
-  let from_to i j = And (Test (Header SDN_Types.IP4Src, make_host_ip i),
-                         And (Test (Header SDN_Types.IP4Dst, make_host_ip j),
-			      Test (Header SDN_Types.EthType, VInt.Int16 0x800)))
+  let from_to i j = And (Test (IP4Src ((make_host_ip i, 0xFFFFFFFFl))),
+                         And (Test (IP4Dst (make_host_ip j, 0xFFFFFFFFl)),
+			      Test (EthType 0x800)))
 
   let make_policy = RegUnion (RegPol (from_to 1 2, (Sequence (Const h1, Sequence (Star, Const h2))), 1),
                             RegPol (from_to 2 1, (Sequence (Const h2, Sequence (Star, Const h1))), 1))
@@ -69,13 +68,9 @@ module Routing = struct
   (*   () *)
 
 
-  let () = let pol = compile_ft_to_kat make_policy (D.make_topo ()) in
-	   Printf.printf "%s\n" (string_of_policy pol);
-	   push (Some pol);
-	   (* let _ = port_status_loop () in *)
-	   ()
+  let policy = compile_ft_to_kat make_policy (D.make_topo ())
+  let () = Printf.printf "%s\n" (string_of_policy policy)
 
 end
 
-let start () = let (_, pol_stream) = NetCore_Stream.from_stream (Filter False) Routing.policy in
-  Controller.start_no_dehop 6633 pol_stream
+let app = create_static Routing.policy

@@ -1,39 +1,32 @@
-open OpenFlow0x04_Platform
-(* open NetCoreFT *)
+open Async_NetKAT
 
-module G = NetCore_Graph.Graph
+module G = Net.Topology
 
-let s1 = G.Switch (Int64.of_int 1)
-let s2 = G.Switch (Int64.of_int 2)
-let s3 = G.Switch (Int64.of_int 3)
-let s4 = G.Switch (Int64.of_int 4)
+let s1 = Switch 1L
+let s2 = Switch 2L
+let s3 = Switch 3L
+let s4 = Switch 4L
 
-let h1 = G.Host 1
-let h2 = G.Host 2
+let h1 = Host (1L, 1l)
+let h2 = Host (2L, 2l)
 
-let make_topo () = 
-  let topo = G.create () in
-  let () = G.add_node topo s1;
-    G.add_node topo s2;
-    G.add_node topo s3;
-    G.add_node topo s4;
+let add_edges topo edges = List.fold_left (fun topo (h1,p1,h2,p2) -> fst (G.add_edge topo (G.vertex_of_label topo h1) p1 () (G.vertex_of_label topo h2) p2)) topo edges
 
-    G.add_host_edge topo h1 s1 (Int32.of_int 1);
-    G.add_host_edge topo h2 s4 (Int32.of_int 1);
+let add_vertexes topo vertexes = List.fold_left (fun topo v -> fst (G.add_vertex topo v)) topo vertexes
 
-    G.add_edge topo s1 (Int32.of_int 2) s2 (Int32.of_int 1);
-    G.add_edge topo s2 (Int32.of_int 1) s1 (Int32.of_int 2);
-
-    G.add_edge topo s1 (Int32.of_int 3) s3 (Int32.of_int 1);
-    G.add_edge topo s3 (Int32.of_int 1) s1 (Int32.of_int 3);
-
-    G.add_edge topo s2 (Int32.of_int 2) s3 (Int32.of_int 2);
-    G.add_edge topo s3 (Int32.of_int 2) s2 (Int32.of_int 2);
-    
-    G.add_edge topo s2 (Int32.of_int 3) s4 (Int32.of_int 2);
-    G.add_edge topo s4 (Int32.of_int 2) s2 (Int32.of_int 3);
-
-    G.add_edge topo s3 (Int32.of_int 3) s4 (Int32.of_int 3);
-    G.add_edge topo s4 (Int32.of_int 3) s3 (Int32.of_int 3);
+let make_topo () =
+  let topo = add_vertexes (G.empty ())
+      [s1; s2; s3; s4; h1; h2]
   in
-  topo
+    add_edges topo [(h1, (Int32.of_int 1), s1, (Int32.of_int 1));
+                    (h2, (Int32.of_int 1), s4, (Int32.of_int 1));
+                    (s1, (Int32.of_int 2), s2, (Int32.of_int 1));
+                    (s2, (Int32.of_int 1), s1, (Int32.of_int 2));
+                    (s1, (Int32.of_int 3), s3, (Int32.of_int 1));
+                    (s3, (Int32.of_int 1), s1, (Int32.of_int 3));
+                    (s2, (Int32.of_int 2), s3, (Int32.of_int 2));
+                    (s3, (Int32.of_int 2), s2, (Int32.of_int 2));
+                    (s2, (Int32.of_int 3), s4, (Int32.of_int 2));
+                    (s4, (Int32.of_int 2), s2, (Int32.of_int 3));
+                    (s3, (Int32.of_int 3), s4, (Int32.of_int 3));
+                    (s4, (Int32.of_int 3), s3, (Int32.of_int 3))]

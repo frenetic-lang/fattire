@@ -1,7 +1,7 @@
 (* type graph = (switchId * switchId * int) list *)
 
 type regex =
-    Const of NetCore_Graph.Graph.node
+    Const of Async_NetKAT.Node.t
   | Star
   | Sequence of regex * regex
   | Union of regex * regex
@@ -11,7 +11,7 @@ type regex =
   | EmptySet
 
 type regex_policy =
-    RegPol of Types.pred * regex * int
+    RegPol of NetKAT_Types.pred * regex * int
   | RegUnion of regex_policy * regex_policy
   | RegInter of regex_policy * regex_policy
 

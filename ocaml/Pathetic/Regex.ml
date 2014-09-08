@@ -1,13 +1,13 @@
 (* open OpenFlow0x01Types *)
-open Types
-module G = NetCore_Graph.Graph
-open Pretty
+open NetKAT_Types
+module G = Async_NetKAT
+open NetKAT_Pretty
 
 (* type graph = (switchId * switchId * int) list *)
 
 
 type regex =
-  | Const of G.node
+  | Const of G.Node.t
   | Star
   | Sequence of regex * regex
   | Union of regex * regex
@@ -29,7 +29,7 @@ let (||) a b = Union(a,b)
 let (<.>) a b = Sequence(a,b)
 
 let rec regex_to_string reg = match reg with
-  | Const(h) -> Printf.sprintf "%s" (G.node_to_string h)
+  | Const(h) -> Printf.sprintf "%s" (G.Node.to_string h)
   | Star -> "*"
   | Empty -> "Empty"
   | EmptySet -> "{}"
