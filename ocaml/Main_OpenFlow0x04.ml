@@ -24,4 +24,6 @@ let _ =
   let main () =
     Async_NetKAT_Controller.start Test.app ~update:`BestEffort ()
   in
-  never_returns (Scheduler.go_main ~max_num_open_file_descrs:4096 ~main ())
+  ignore (main ());
+  Core.Std.never_returns (Async.Std.Scheduler.go ())
+  (* never_returns (Scheduler.go_main ~max_num_open_file_descrs:4096 ~main ()) *)
