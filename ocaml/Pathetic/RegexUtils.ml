@@ -29,9 +29,9 @@ let rec seen_link_before sw1 sw2 path =
 
 let get_nbrs g node =
   let ports = T.vertex_to_ports g node in
-  T.PortSet.fold (fun pt s -> match (T.next_hop g node pt) with
+  T.PortSet.fold ports ~f:(fun s pt -> match (T.next_hop g node pt) with
       | None -> s
-      | Some e -> T.EdgeSet.add e s) ports T.EdgeSet.empty
+      | Some e -> T.EdgeSet.add s e) ~init:T.EdgeSet.empty
 
 (* Need to add constraints to avoid routing through hosts *)
 let rec bfs' graph queue =
@@ -42,15 +42,14 @@ let rec bfs' graph queue =
     | true -> path
     | false -> 
       let nbrs = (T.neighbors graph (T.vertex_of_label graph sw)) in
-      T.VertexSet.iter (fun x ->
+      T.VertexSet.iter nbrs (fun x ->
           let x = T.vertex_to_label graph x in
 	if seen_link_before sw x path then () else
 	  let re' = deriv (Const x) re in
 	  match is_empty re' with
 	    | false ->
 	      Q.add (x, re', x :: path) queue
-	    | true -> ()) 
-	nbrs;
+	    | true -> ());
       bfs' graph queue
 
 
@@ -58,13 +57,13 @@ exception NoPath of string*string
 
 let bfs graph re = 
   let q = Queue.create () in
-  T.VertexSet.iter (fun src' ->
+  T.VertexSet.iter (T.vertexes graph)
+    (fun src' ->
       let src = T.vertex_to_label graph src' in
       let re' = deriv (Const src) re in
       match is_empty re' with
       | false -> Q.add (src, re', [src]) q
-      | true -> ())
-    (T.vertexes graph );
+      | true -> ());
   (try (bfs' graph q)
    with Queue.Empty -> raise (NoPath("unknown", "unknown")))
 

@@ -73,4 +73,4 @@ module Routing = struct
 
 end
 
-let app = create_static Routing.policy
+let app = Policy.create_static Routing.policy
