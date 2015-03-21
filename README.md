@@ -11,21 +11,21 @@ Prerequisites
 
 - OCaml 4 or higher <http://caml.inria.fr/download.en.html>
 
-- OPAM <http://opam.ocamlpro.com>
+- OPAM <http://opam.ocaml.org>
 
 - The following OCaml libraries:
 
   - findlib
-  - lwt
-  - cstruct 
+  - core
+  - async
+  - cstruct
   - oUnit
-  - menhir
   - frenetic
 
   These are available on OPAM:
 
   ```
-  $ opam install ocamlfind cstruct lwt ounit menhir frenetic
+  $ opam install ocamlfind core async cstruct ounit frenetic
   ```
 
 Building
@@ -36,11 +36,3 @@ Building
   ```
   $ make
   ```
-
-Hacking
-=======
-
-OCaml Wisdom
-------------
-
-If you're using the user-mode reference switch, emit CONTROLLER actions last.
