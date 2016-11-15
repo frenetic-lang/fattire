@@ -1,8 +1,7 @@
-open NetKAT_Types
+open Frenetic_NetKAT
 open Regex
-module G = Async_NetKAT
-module N = G.Node
-module T = G.Net.Topology
+module N = Node
+module T = Net.Topology
 module R = Regex
 
 let oldPol (a,b) = Seq (Filter a, b)
@@ -21,10 +20,11 @@ let oldInPort p =
 module Q = Queue
 
 let rec seen_link_before sw1 sw2 path =
-  match path with 
+  let open Pervasives in
+  match path with
     | [] -> false
     | [_] -> false
-    | a :: b :: path -> if a = sw1 & b = sw2 then true else
+    | a :: b :: path -> if a = sw1 && b = sw2 then true else
 	seen_link_before sw1 sw2 (b :: path)
 
 let get_nbrs g node =
@@ -73,11 +73,11 @@ let expand_re re topo =
       (* Printf.printf "expand_re returned %s\n" (String.concat ";" (List.map N.to_string return)); *)
       return
   with 
-    | NoPath(s1,s2) -> Printf.printf "Couldn't find path for %s in graph\n\t%s\n" (regex_to_string re) (G.Net.Pretty.to_string topo);
+    | NoPath(s1,s2) -> Printf.printf "Couldn't find path for %s in graph\n\t%s\n" (regex_to_string re) (Net.Pretty.to_string topo);
       raise (NoPath("unknown","unknown"))
 
 let shortest_path_re re src topo = 
-  Printf.printf "shortest_path_re %s %s %s\n" (regex_to_string re) (N.to_string src) (G.Net.Pretty.to_string topo);
+  Printf.printf "shortest_path_re %s %s %s\n" (regex_to_string re) (N.to_string src) (Net.Pretty.to_string topo);
   let q = Queue.create () in
   let re' = deriv (Const src) re in
   (match is_empty re' with
@@ -88,13 +88,13 @@ let shortest_path_re re src topo =
  
 let rec compile_path1 pred path topo port =
   match path with
-  | G.Switch s1 :: G.Switch s2 :: path ->
-    let e = T.find_edge topo (T.vertex_of_label topo (G.Switch s1)) (T.vertex_of_label topo (G.Switch s2)) in
+  | Switch s1 :: Switch s2 :: path ->
+    let e = T.find_edge topo (T.vertex_of_label topo (Switch s1)) (T.vertex_of_label topo (Switch s2)) in
     let _,p1 = T.edge_src e in
     let _,p2 = T.edge_dst e in
-    NetKAT_Types.Union (Seq (Filter (And (pred, (And (oldInPort port, Test (Switch s1))))), Mod (Location (Physical p1))), ((compile_path1 pred ((G.Switch s2) :: path) topo (Physical p2))))
-  | G.Switch s1 :: [G.Host (mac,ip)] ->
-    let _,p1 = T.edge_src (T.find_edge topo (T.vertex_of_label topo (G.Switch s1)) (T.vertex_of_label topo (G.Host (mac,ip)))) in
+    Frenetic_NetKAT.Union (Seq (Filter (And (pred, (And (oldInPort port, Test (Switch s1))))), Mod (Location (Physical p1))), ((compile_path1 pred ((Switch s2) :: path) topo (Physical p2))))
+  | Switch s1 :: [Host (mac,ip)] ->
+    let _,p1 = T.edge_src (T.find_edge topo (T.vertex_of_label topo (Switch s1)) (T.vertex_of_label topo (Host (mac,ip)))) in
     Seq (Filter (And (pred, (And (oldInPort port, Test (Switch s1))))),
 	 Seq( Mod(Vlan 0xFFFF),
               Mod(Location (Physical p1))))
@@ -109,18 +109,18 @@ let get_ports topo v1 v2 =
 
 let compile_path pred path topo vid =
   match path with
-  | G.Host (mac1,ip1) :: G.Switch s :: [G.Host (mac2,ip2)] ->
-    let (_,p1) = get_ports topo (G.Host (mac1, ip1)) (G.Switch s) in
-    let (p2,_) = get_ports topo (G.Switch s) (G.Host (mac2, ip2)) in
+  | Host (mac1,ip1) :: Switch s :: [Host (mac2,ip2)] ->
+    let (_,p1) = get_ports topo (Host (mac1, ip1)) (Switch s) in
+    let (p2,_) = get_ports topo (Switch s) (Host (mac2, ip2)) in
     Seq (Filter (And (pred, (And (oldInPort (Physical p1), Test (Switch s))))),
          Mod (Location (Physical p2)))
-  | G.Host (h1,h2) :: G.Switch s1 :: G.Switch s2 :: path ->
-    let _,inport = get_ports topo (G.Host (h1,h2)) (G.Switch s1) in
-    let p1,p2 = get_ports topo (G.Switch s1) (G.Switch s2) in
+  | Host (h1,h2) :: Switch s1 :: Switch s2 :: path ->
+    let _,inport = get_ports topo (Host (h1,h2)) (Switch s1) in
+    let p1,p2 = get_ports topo (Switch s1) (Switch s2) in
     let pol = oldPol (And (pred, (And (oldInPort (Physical inport), Test (Switch s1)))),
 		      Seq( Mod(Vlan vid),
                            Mod(Location (Physical p1)))) in
-    NetKAT_Types.Union (pol, compile_path1 (And (And (Test (Vlan vid), Test (VlanPcp 0)), pred)) (G.Switch s2 :: path) topo (Physical p2))
+    Frenetic_NetKAT.Union (pol, compile_path1 (And (And (Test (Vlan vid), Test (VlanPcp 0)), pred)) (Switch s2 :: path) topo (Physical p2))
   | [] -> Filter False
   | _ -> failwith (Printf.sprintf "Trying to compile path %s which does not start with a host followed by a switch" (print_list N.to_string path))
 
@@ -446,4 +446,4 @@ let normalize pol =
 
 let rec compile_regex pol topo = match pol with
   | RegPol (pred, reg, _) -> compile_path pred (expand_re reg topo) topo (Gensym.next ())
-  | RegUnion (pol1, pol2) -> NetKAT_Types.Union (compile_regex pol1 topo, compile_regex pol2 topo)
+  | RegUnion (pol1, pol2) -> Frenetic_NetKAT.Union (compile_regex pol1 topo, compile_regex pol2 topo)

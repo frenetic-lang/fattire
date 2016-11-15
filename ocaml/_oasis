@@ -1,0 +1,63 @@
+OASISFormat: 0.4
+OCamlVersion: >= 4.03.0
+Name:        fattire
+Version:     0.2
+Synopsis:    Fault Tolerating Regular Expressions
+Authors:     https://github.com/frenetic-lang/fattire/contributors
+License:     LGPL
+Plugins:     META (0.3)
+BuildTools:
+  ocamlbuild,
+  ocamldoc
+
+Library pathetic
+  Path: Pathetic
+  Pack: true
+  BuildDepends:
+    core,
+    frenetic,
+    ppx_jane,
+    threads
+  Modules:
+    Regex,
+    RegexUtils
+
+
+Library fattire
+  Path: .
+  BuildDepends:
+    async,
+    base64 (>= 2.0.0),
+    camlp4.lib,
+    camlp4.extend,
+    camlp4,
+    core,
+    cstruct,
+    frenetic,
+    pathetic,
+    ppx_jane,
+    ppx_deriving.eq,
+    ppx_deriving.enum,
+    str,
+    tcpip,
+    threads,
+    oUnit
+  Modules:
+    DiamondTopo,
+    FaultTolerance,
+    IDSTopo,
+    NetCore_Graph,
+    RegexFTTest,
+    Test
+
+# Executable pathetic
+#   Path: .
+#   MainIs: Main_OpenFlow0x04.ml
+#   Install: true
+#   CompiledObject: native
+#   BuildDepends:
+#     async,
+#     core,
+#     frenetic,
+#     frenetic.async,
+

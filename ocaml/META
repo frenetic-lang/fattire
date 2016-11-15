@@ -1,0 +1,13 @@
+# OASIS_START
+# DO NOT EDIT (digest: 647c7e2a7e19e2573b545647c74ae335)
+version = "0.2"
+description = "Fault Tolerating Regular Expressions"
+requires =
+"async base64 camlp4.lib camlp4.extend camlp4 core cstruct frenetic pathetic ppx_jane ppx_deriving.eq ppx_deriving.enum str tcpip threads oUnit"
+archive(byte) = "fattire.cma"
+archive(byte, plugin) = "fattire.cma"
+archive(native) = "fattire.cmxa"
+archive(native, plugin) = "fattire.cmxs"
+exists_if = "fattire.cma"
+# OASIS_STOP
+

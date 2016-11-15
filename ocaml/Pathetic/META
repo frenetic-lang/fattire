@@ -1,0 +1,12 @@
+# OASIS_START
+# DO NOT EDIT (digest: dd6dc931d7b8279975c466b43b62d2a0)
+version = "0.2"
+description = "Fault Tolerating Regular Expressions"
+requires = "core frenetic ppx_jane threads"
+archive(byte) = "pathetic.cma"
+archive(byte, plugin) = "pathetic.cma"
+archive(native) = "pathetic.cmxa"
+archive(native, plugin) = "pathetic.cmxs"
+exists_if = "pathetic.cma"
+# OASIS_STOP
+

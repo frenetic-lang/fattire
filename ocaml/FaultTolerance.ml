@@ -1,12 +1,10 @@
-open NetKAT_Types
+open Frenetic_NetKAT
 open Pathetic.Regex
 open Pathetic.RegexUtils
-open Async_NetKAT
-(* open NetCoreFT *)
 
 module G = Net.Topology
 
-let fake_choice (a,b) = NetKAT_Types.Union (a,b)
+let fake_choice (a,b) = Union (a,b)
 
 (* open NetCoreEval0x04 *)
 
@@ -14,11 +12,11 @@ let fake_choice (a,b) = NetKAT_Types.Union (a,b)
 
 let trivial_pol = Filter False
 
-let rec action_choice_to_choice lst = match lst with
-  | [a] -> a
-  | a :: lst -> fake_choice (a, action_choice_to_choice lst)
+(* let rec action_choice_to_choice lst = match lst with *)
+(*   | [a] -> a *)
+(*   | a :: lst -> fake_choice (a, action_choice_to_choice lst) *)
 
-let lpar (a,b) = Seq (Filter a, action_choice_to_choice b)
+let lpar (a,b) = Seq (Filter a, Frenetic_NetKAT_Optimize.mk_big_union b)
 
 (* Tree w/ ordered children. Leafs are hosts, internal nodes are switches *)
 type k_tree = 
@@ -195,8 +193,8 @@ let rec policy_from_k_tree' inport tree topo path_tag tag =
       let next_hops = List.map (next_hop_from_k_tree sw' topo) children in
       let children_pols = List.fold_left 
 	(fun a (sw'', inport,tree) -> 
-	  NetKAT_Types.Union(a, policy_from_k_tree' inport (snd tree) topo path_tag (fst tree))) trivial_pol next_hops in
-      NetKAT_Types.Union(backup, children_pols)
+	  Frenetic_NetKAT.Union(a, policy_from_k_tree' inport (snd tree) topo path_tag (fst tree))) trivial_pol next_hops in
+      Frenetic_NetKAT.Union(backup, children_pols)
 
 let next_port_from_k_tree_root sw topo pathTag tree = 
   match tree with
@@ -219,8 +217,8 @@ let policy_from_k_tree pr tree topo path_tag tag =
       let next_hops = List.map (next_hop_from_k_tree (Switch sw) topo) children in
       let children_pols = List.fold_left 
 	(fun a (sw'', inport,treeTag) -> 
-	  NetKAT_Types.Union(a, policy_from_k_tree' inport (snd treeTag) topo path_tag (fst treeTag))) trivial_pol next_hops in
-      NetKAT_Types.Union(backup, children_pols)
+	  Frenetic_NetKAT.Union(a, policy_from_k_tree' inport (snd treeTag) topo path_tag (fst treeTag))) trivial_pol next_hops in
+      Frenetic_NetKAT.Union(backup, children_pols)
 
 
 (* let rec pred_to_netkat_pred pr = match pr with *)
@@ -244,5 +242,5 @@ let rec compile_ft_to_kat regpol topo =
   let genSym = GenSym.create() in
   let pols = normalize regpol in
   List.fold_left (fun acc pol -> let vid = (GenSym.next_val genSym) in 
-				 NetKAT_Types.Union(compile_ft_regex pol vid topo, acc))
+				 Frenetic_NetKAT.Union(compile_ft_regex pol vid topo, acc))
     trivial_pol pols

@@ -1,43 +1,35 @@
-# LIBRARIES = OpenFlowLib
+all: build
 
-SUFFIXES = .a .cmxa .cma .d.cma
+J=4
 
-.PHONY: all doc clean $(LIBRARIES)
+setup.ml: _oasis
+	oasis setup
 
-OCAMLBUILD = ocamlbuild -use-ocamlfind $(addprefix -I ,$(LIBRARIES))
+setup.data: setup.ml
+	./configure
 
-OCAMLFIND = ocamlfind
+build: setup.data setup.ml
+	ocaml setup.ml -build -j $(J)
 
-%.d.byte:
-	$(OCAMLBUILD) -cflag -ppopt -cflag -lwt-debug $@
+install: setup.data setup.ml
+	ocaml setup.ml -install
 
-%.native %.byte:
-	$(OCAMLBUILD) $@
+reinstall: setup.ml
+	ocaml setup.ml -reinstall
 
-%.d.cma:
-	$(OCAMLBUILD) -no-links -cflag -ppopt -cflag -lwt-debug $@
+uninstall: setup.ml
+	ocaml setup.ml -uninstall
 
-%.a %.cmxa %.cma:
-	$(OCAMLBUILD) -no-links $@
-
-# $(LIBRARIES):
-# 	$(foreach SUFFIX, $(SUFFIXES), \
-# 	    $(OCAMLBUILD) $(addsuffix $(SUFFIX),$@/$@);)
-
-all: $(LIBRARIES)
-	$(OCAMLBUILD) main.otarget
-
-debug:
-	$(OCAMLBUILD) debug.otarget
-
-native:
-	$(OCAMLBUILD) native.otarget
-
-doc:
-	$(OCAMLBUILD) doc.docdir/index.html
-
-test: 
-	$(OCAMLBUILD) test.otarget		
+test: setup.ml build
+	ocaml setup.ml -test $(TESTFLAGS)
 
 clean:
-	rm -rf _build
+	ocamlbuild -clean
+	rm -f setup.data setup.log
+
+distclean:
+	ocaml setup.ml -distclean
+	rm -f setup.data setup.log
+
+doc:
+	ocaml setup.ml -doc
