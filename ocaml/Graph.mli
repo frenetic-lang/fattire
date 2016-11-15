@@ -2,10 +2,10 @@ module type GRAPH =
 sig
   type node =
       Host of int
-    | Switch of OpenFlow0x04_Core.switchId
+    | Switch of Frenetic_NetKAT.switchId
 
   type a = node
-  type b = OpenFlow0x04_Core.portId
+  type b = Frenetic_NetKAT.portId
   type graph
   val create : unit -> graph
   val add_node : graph -> a -> unit

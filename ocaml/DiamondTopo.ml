@@ -1,5 +1,4 @@
-open Async_NetKAT
-
+open Pathetic.Regex
 module G = Net.Topology
 
 let s1 = Switch 1L

@@ -1,15 +1,43 @@
-true : use_menhir, thread
-<Pathetic/Regex.cmx> : for-pack(Pathetic), package(netkat), package(topology)
-<Pathetic/RegexUtils.cmx> : for-pack(Pathetic), package(netkat), package(topology)
-<Pathetic/Regex.cmo> : for-pack(Pathetic), package(netkat), package(topology)
-<Pathetic/RegexUtils.cmo> : for-pack(Pathetic), package(netkat), package(topology)
-<Pathetic/*.cmo> : for-pack(Pathetic), package(netkat), package(topology)
-<Pathetic.cmo> : package(netkat), package(topology)
-<**/*.byte> : package(async), package(cstruct)
-<**/*.d.byte> : package(async), package(cstruct)
-<**/*.native> : package(async), package(cstruct)
-<**/*.ml{,i}> : package(async), package(cstruct), package(cstruct.syntax), syntax(camlp4o), package(packet), package(openflow), package(netkat), package(topology)
-<*.d.byte> : package(cstruct), package(async)
-<*.byte> : package(cstruct), package(async)
-<*.native> : package(cstruct), package(async)
-<Main_OpenFlow0x04.*> : package(str), package(openflow), package(netkat), package(topology), package(netkat.async)
+# OASIS_START
+# DO NOT EDIT (digest: 476067496faa3fa198f06bb0074ae1ea)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+true: annot, bin_annot
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library pathetic
+"Pathetic/pathetic.cmxs": use_pathetic
+"Pathetic/Regex.cmx": for-pack(Pathetic)
+"Pathetic/RegexUtils.cmx": for-pack(Pathetic)
+<Pathetic/*.ml{,i,y}>: package(core)
+<Pathetic/*.ml{,i,y}>: package(frenetic)
+<Pathetic/*.ml{,i,y}>: package(ppx_jane)
+<Pathetic/*.ml{,i,y}>: package(threads)
+# Library fattire
+"fattire.cmxs": use_fattire
+<*.ml{,i,y}>: package(async)
+<*.ml{,i,y}>: package(base64)
+<*.ml{,i,y}>: package(camlp4)
+<*.ml{,i,y}>: package(camlp4.extend)
+<*.ml{,i,y}>: package(camlp4.lib)
+<*.ml{,i,y}>: package(core)
+<*.ml{,i,y}>: package(cstruct)
+<*.ml{,i,y}>: package(frenetic)
+<*.ml{,i,y}>: package(oUnit)
+<*.ml{,i,y}>: package(ppx_deriving.enum)
+<*.ml{,i,y}>: package(ppx_deriving.eq)
+<*.ml{,i,y}>: package(ppx_jane)
+<*.ml{,i,y}>: package(str)
+<*.ml{,i,y}>: package(tcpip)
+<*.ml{,i,y}>: package(threads)
+<*.ml{,i,y}>: use_pathetic
+# OASIS_STOP

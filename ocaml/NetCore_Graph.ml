@@ -1,6 +1,6 @@
 module H = Hashtbl
 module Q = Queue
-module M = NetKAT_Types
+module M = Frenetic_NetKAT
 
 module type GRAPH =
 sig
@@ -20,11 +20,11 @@ sig
   val shortest_path : graph -> a -> a -> a list
   val get_ports : graph -> a -> a -> (b*b)
   val ports_of_switch : graph -> a -> b list
-  val edge_ports_of_switch : graph -> NetCore_Types.switchId -> b list
-  val get_switches : graph -> NetCore_Types.switchId list
+  val edge_ports_of_switch : graph -> M.switchId -> b list
+  val get_switches : graph -> M.switchId list
   val get_hosts : graph -> a list
   val get_nodes : graph -> a list
-  val get_switches_and_ports : graph -> (NetCore_Types.switchId * b list) list
+  val get_switches_and_ports : graph -> (M.switchId * b list) list
   (* val get_ports : graph -> a -> b list *)
   (* val get_other_port : graph -> a -> b -> (a*b) option *)
   val next_hop : graph -> a -> b -> a

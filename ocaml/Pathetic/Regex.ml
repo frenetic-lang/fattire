@@ -1,13 +1,54 @@
 (* open OpenFlow0x01Types *)
-open NetKAT_Types
-module G = Async_NetKAT
-open NetKAT_Pretty
+open Core.Std
+open Frenetic_NetKAT
+open Frenetic_Packet
+open Frenetic_Network
+open Frenetic_NetKAT_Pretty
 
-(* type graph = (switchId * switchId * int) list *)
+type node =
+  | Switch of switchId
+  | Host of dlAddr * nwAddr [@@deriving sexp]
 
+module Node = struct
+  type t = node [@@deriving sexp]
+
+  let compare = Pervasives.compare
+
+  let to_string t = match t with
+    | Switch(sw_id)       -> Printf.sprintf "switch %Lu" sw_id
+    | Host(dlAddr, nwAddr) -> Printf.sprintf "host %s/%s"
+                                (string_of_nwAddr nwAddr)
+                                (string_of_dlAddr dlAddr)
+
+  let parse_dot _ _ = failwith "NYI: Node.parse_dot"
+  let parse_gml _ = failwith "NYI: Node.parse_dot"
+
+  let to_dot t = match t with
+    | Switch(sw_id) -> Printf.sprintf "%s [label=SW%Lu]" (to_string t) sw_id
+    | Host(dlAddr, nwAddr) -> Printf.sprintf "%s [label=%s]" (to_string t) (string_of_nwAddr nwAddr)
+
+  let to_mininet _ = failwith "NYI: Node.to_mininet"
+end
+
+module Link = struct
+  type t = unit [@@deriving sexp]
+
+  let compare = Pervasives.compare
+
+  let to_string () = "()"
+  let default = ()
+
+  let parse_dot _ = failwith "NYI: Link.parse_dot"
+  let parse_gml _ = failwith "NYI: Link.parse_dot"
+
+  let to_dot = to_string
+  let to_mininet _ = failwith "NYI: Link.to_mininet"
+end
+
+module Net = Frenetic_Network.Make(Node)(Link)
 
 type regex =
-  | Const of G.Node.t
+  | Const of Node.t
   | Star
   | Sequence of regex * regex
   | Union of regex * regex
@@ -29,7 +70,7 @@ let (||) a b = Union(a,b)
 let (<.>) a b = Sequence(a,b)
 
 let rec regex_to_string reg = match reg with
-  | Const(h) -> Printf.sprintf "%s" (G.Node.to_string h)
+  | Const(n) -> Node.to_string n
   | Star -> "*"
   | Empty -> "Empty"
   | EmptySet -> "{}"
@@ -99,12 +140,14 @@ let rec nu re =
   (* Printf.printf "returned %s\n" (regex_to_string foo); *)
   foo
 
-let rec is_empty re = match re with
+let rec is_empty re : bool =
+  let open Pervasives in
+  match re with
   | Empty -> false
   | EmptySet -> true
   | Const _ -> false
-  | Sequence(a,b) -> is_empty(a) or is_empty(b)
-  | Union(a,b) -> is_empty(a) & is_empty(b)
+  | Sequence(a,b) -> ( is_empty a ) || (is_empty b)
+  | Union(a,b) -> is_empty(a) && is_empty(b)
   | Intersection(a,b) -> is_empty (Comp (Union (Comp a, Comp b)))
   | Star -> false
   | Comp a -> not (is_empty a)
@@ -124,7 +167,7 @@ let rec deriv sym re =
   (* Printf.printf "returned %s\n" (regex_to_string return); *)
   return
 
-let rec deriv_path path re = List.fold_left (fun x y -> deriv y x) re (List.rev path)
+let rec deriv_path path re = List.fold_left ~f:(fun x y -> deriv y x) ~init:re (List.rev path)
 
 let rec match_path re path = 
   let return = match path with

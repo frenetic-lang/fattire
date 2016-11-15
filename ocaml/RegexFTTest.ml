@@ -1,10 +1,9 @@
 (* open OpenFlow0x04_Core *)
 (* open OpenFlow0x04_Platform *)
 open FaultTolerance
-open NetKAT_Types
-open NetKAT_Pretty
+open Frenetic_NetKAT
+open Frenetic_NetKAT_Pretty
 open Pathetic.Regex
-open Async_NetKAT
 module H = Hashtbl
 module G = Net.Topology
 
@@ -73,4 +72,4 @@ module Routing = struct
 
 end
 
-let app = Policy.create_static Routing.policy
+(* let app = Policy.create_static Routing.policy *)

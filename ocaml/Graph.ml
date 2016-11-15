@@ -1,15 +1,14 @@
+open Frenetic_NetKAT
 module H = Hashtbl
 module Q = Queue
-module M = OpenFlow0x04_Core
-module P = OpenFlow0x04_Core
 
 module type GRAPH =
 sig
   type node = 
       Host of int
-    | Switch of M.switchId
+    | Switch of switchId
   type a = node
-  type b = P.portId
+  type b = portId
   type graph
   val create : unit -> graph
   val add_node : graph -> a -> unit
@@ -43,9 +42,9 @@ module Graph : GRAPH =
   struct
     type node = 
 	Host of int
-      | Switch of M.switchId
+      | Switch of switchId
     type a = node
-    type b = P.portId
+    type b = portId
     type h = int
     (* sw -> port -> (sw*port) *)
     type portTbl_t = ((a,(b, (a*b)) H.t) H.t)
